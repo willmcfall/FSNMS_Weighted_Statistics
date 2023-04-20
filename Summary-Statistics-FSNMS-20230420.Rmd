@@ -1,0 +1,1010 @@
+---
+title: "WFP SSCO Food Security Nutrition Monitoring System (FSNMS) - December 2021"
+subtitle: "WFP SSCO FSNMS Analysis Summary Statistics"
+author: "William Mcfall - WFP South Sudan RAM Officer"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  html_document:
+    theme: flatly
+    highlight: espresso
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false 
+    number_sections: true
+    
+---
+
+
+```{r setup, include=FALSE, fig.align = "center", fig.width= 16, fig.height= 11, fig.asp= 0.618, out.width="100%"}
+
+rm(list = ls())
+
+
+setwd('XXX')
+
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE,
+	cache.path = "cache/html/" # set to ensure that cache directory functions properly... change path if output type changes
+)
+
+
+
+knitr::opts_knit$set(root.dir = 'XXX') 
+
+```
+
+
+```{r, echo=FALSE,out.width="30%", out.height="30%",fig.show='hold',fig.align='left'}
+knitr::include_graphics("XXX" )
+
+```
+  
+```{r wfp_theme}
+
+## creates WFP theme for ggplots
+
+## https://rpubs.com/mclaire19/ggplot2-custom-themes
+## https://ggplot2.tidyverse.org/reference/theme.html
+
+theme_wfp <- function(){ 
+  font <- "Open Sans"   
+  
+  theme_minimal() %+replace%   
+    
+    theme(
+      
+      # grid elements
+      panel.grid.major = element_blank(),    
+      panel.grid.minor = element_blank(),    
+      axis.ticks = element_blank(), 
+      
+      # text elements
+      plot.title = element_text(
+        family = font,            
+        size = 20,                
+        face = 'bold',            
+        colour = 'black',         
+        hjust = 0),               
+      
+      #subtitle elements
+      plot.subtitle = element_text(   
+        family = font,            
+        colour = 'grey',
+        size = 16,
+        face = 'bold'),               
+      
+      #legend elements
+      legend.title = element_text(
+        family = font,            
+        colour = 'black',
+        size = 14,
+        face = 'bold'
+      ),
+      
+      # caption elements
+      plot.caption = element_text(           
+        family = font,           
+        size = 9,                 
+        hjust = 1),               
+      
+      # axis title elements
+      axis.title = element_text(             
+        family = font,
+        face = 'bold', 
+        size = 12),               
+      
+      # axis text elements
+      axis.text = element_text(              
+        family = font,            
+        size = 12),                
+      
+      # axis text margins
+      axis.text.x = element_text(           
+        margin=margin(10, b = 10))
+      
+    )
+}
+
+
+```
+
+```{r load_packages}
+
+library(gtsummary)
+library(readxl)
+library(openxlsx)
+library(dplyr)
+library(tidyr)
+library(mosaic)
+library(tidyverse)
+library(modelsummary)
+library(kableExtra) 
+library(foreign)
+library(arsenal)
+library(desctable)
+library(survey)
+library(srvyr) 
+library(naniar)
+library(rmarkdown)
+library(haven)
+library(labelled)
+library(sjlabelled)
+# library(xlsx)
+library(rlang)
+library(skimr)
+library(ggrepel)
+library(janitor)
+library(skimr)
+
+## sessionInfo()
+## https://www.ibm.com/support/pages/setting-missing-values-string-variables
+
+```
+
+```{r data_import}
+
+## import fsnms data - rural
+rural_fsnms_data <- read.spss("./Data Input/XXX.sav", use.value.labels = TRUE, to.data.frame = TRUE, use.missings = TRUE) 
+# glimpse(rural_fsnms_data)
+
+## import livelihood zone
+livelihoods_zone <- read.csv("./Data Input/XXX.csv")
+
+rural_fsnms_data <- left_join(rural_fsnms_data, livelihoods_zone, by = "X._uuid")
+
+```
+
+```{r selected_data}
+
+# glimpse(rural_fsnms_data)
+
+# extracts variable names from the SPSS file
+# x <- as.data.frame(attr(rural_fsnms_data, which="names"))
+# y <- as.data.frame(attr(rural_fsnms_data, which="variable.labels"))
+# variable_labels <- cbind(x,y)
+# # openxlsx::write.xlsx(variable_labels, file = "./Data Output/variable_label_dataset.xlsx")
+# rm(variable_labels, x, y)
+
+
+## creates new variables
+rural_fsnms_data$disability_yn <- NA
+rural_fsnms_data$disability_yn <- 0
+rural_fsnms_data$disability_yn[rural_fsnms_data$B13_seeing == "Cannot do at all" | rural_fsnms_data$B13_seeing == "Yes, a lot of difficulty"] <- 1
+rural_fsnms_data$disability_yn[rural_fsnms_data$B14_hearing == "Cannot do at all" | rural_fsnms_data$B14_hearing == "Yes, a lot of difficulty"] <- 1
+rural_fsnms_data$disability_yn[rural_fsnms_data$B15_walking == "Cannot do at all" | rural_fsnms_data$B15_walking == "Yes, a lot of difficulty"] <- 1
+rural_fsnms_data$disability_yn[rural_fsnms_data$B16_remembering == "Cannot do at all" | rural_fsnms_data$B16_remembering == "Yes, a lot of difficulty"] <- 1
+rural_fsnms_data$disability_yn[rural_fsnms_data$B17_washing == "Cannot do at all" | rural_fsnms_data$B17_washing == "Yes, a lot of difficulty"] <- 1
+rural_fsnms_data$disability_yn[rural_fsnms_data$B18_communicating == "Cannot do at all" | rural_fsnms_data$B18_communicating == "Yes, a lot of difficulty"] <- 1
+# table(rural_fsnms_data$disability_yn)
+
+rural_fsnms_data$chronic_yn <- NA
+rural_fsnms_data$chronic_yn[rural_fsnms_data$B20_chronic > 0] <- 1
+rural_fsnms_data$chronic_yn[rural_fsnms_data$B20_chronic == 0] <- 0
+
+rural_fsnms_data$dependency_ratio <- NA
+rural_fsnms_data$dependency_ratio <- (rural_fsnms_data$Children_under3 + rural_fsnms_data$Children_3_to_5years + rural_fsnms_data$Children_6_to_13years + rural_fsnms_data$Children_14_to_17years + rural_fsnms_data$Adults_60plus)/(rural_fsnms_data$Adults_18_to_60years)
+rural_fsnms_data$dependency_ratio [rural_fsnms_data$Adults_18_to_60years == 0] <- NA
+# table(rural_fsnms_data$dependency_ratio)
+
+rural_fsnms_data$elderly_only <- NA
+rural_fsnms_data$elderly_only[rural_fsnms_data$Adults_60plus == rural_fsnms_data$HH_size] <- 1
+rural_fsnms_data$elderly_only[rural_fsnms_data$Adults_60plus != rural_fsnms_data$HH_size] <- 0
+# table(rural_fsnms_data$elderly_only)
+
+rural_fsnms_data$child_only <- NA
+rural_fsnms_data$child_only[(rural_fsnms_data$Children_under3 + rural_fsnms_data$Children_3_to_5years + rural_fsnms_data$Children_6_to_13years + rural_fsnms_data$Children_14_to_17year) == rural_fsnms_data$HH_size] <- 1
+rural_fsnms_data$child_only[(rural_fsnms_data$Children_under3 + rural_fsnms_data$Children_3_to_5years + rural_fsnms_data$Children_6_to_13years + rural_fsnms_data$Children_14_to_17year) != rural_fsnms_data$HH_size] <- 0
+# table(rural_fsnms_data$child_only)
+
+
+rural_fsnms_data$hh_composition <- NA
+rural_fsnms_data$hh_composition[rural_fsnms_data$HH_size > 0 & rural_fsnms_data$HH_size <= 3] <- "01 - 03 members"
+rural_fsnms_data$hh_composition[rural_fsnms_data$HH_size > 3 & rural_fsnms_data$HH_size <= 6] <- "04 - 06 members"
+rural_fsnms_data$hh_composition[rural_fsnms_data$HH_size > 6 & rural_fsnms_data$HH_size <= 9] <- "07 - 09 members"
+rural_fsnms_data$hh_composition[rural_fsnms_data$HH_size > 9 & rural_fsnms_data$HH_size <= 12] <- "10 - 12 members"
+rural_fsnms_data$hh_composition[rural_fsnms_data$HH_size > 12] <- "13+ members"
+# table(rural_fsnms_data$hh_composition)
+
+# select and label relevant variables
+selected_fsnms_data <- rural_fsnms_data %>% select(c("cluster_id","A05_Num","A04_Num":"Disable_mems","hh_composition","HH_size":"dependants", "dependency_ratio","elderly_only","child_only","C01","B13_seeing":"B18_communicating","B19_difficulty_number", "disability_yn","B20_chronic", "chronic_yn","B21_safety", "B22", "B23a_documents","B23_documents", "B24_hh_engage", "B25_protection.1":"B25_protection.18","B28_1":"B28_16","B29", "B32.1","B32.2","B32.3","B32.1.1","B32.2.1","B32.3.1", "B33", "C02", "C03_hosting_idps", "C04_hosting_returnees","C05","C03","C02.2","D01","D02":"D05", "D07_source_cooking", "D08_source_lighting", "D09","D11", "D12_training", "D17", "D18","D23", "D24", "T01":"T20", "SS1_YN":"SCS","timespenst":"WASH_NFIs","G01", "G02", "G03","G05", "G08", "G10", "G11", "G12", "G13", "H01", "H01_1","H02","Asset_ownership":"Asset_looted","O05.14":"L_ownership_CGS", "J01":"J06a","J07", "J08","J09","K001":"K006","L01","L05":"L08","M01.1":"M01.88","N01":"N05","N06":"N17", "O01":"O02", "O03.1":"O03.21", "O04.1":"O04.12","O05.1":"O05.13","O06","O07.1":"O07.13","HHSQ1":"Max_coping_behaviour","Foodexp_4pt","FS_final","FCLC_Phase","FCLC_Phase_MinusHA","HA":"GFD_1Month","FoodAid":"HA_kcals","TotalAssets",  "P01", "P02_cattle":"P02_camel","P02_1", "P02_2","P04.1":"P04.12", "P05","P06", "Q01a","R01","R02":"R03.3","R03.4", "R06.2", "R07", "R08.1":"R08.2","R08a","R08b","R08c","R09","sampleweight", "LZCODE", "LZNAMEEN")) 
+
+# glimpse(rural_fsnms_data)
+
+# "S01", "S02","S03","S04","S05","S06","S07","S08","S09","S10",
+# openxlsx::write.xlsx(rural_fsnms_data, file = "./Data Output/rural_fsnms_data.xlsx")
+# fewsnet_data <- rural_fsnms_data %>% select("interview._A10_gps_latitude","interview._A10_gps_longitude","X._id","X._uuid","instanceID","X._index")
+# openxlsx::write.xlsx(fewsnet_data, file = "./Data Output/fewsnet_livelihoods_zone_data.xlsx")
+
+
+# labels variables with relevant variable name
+var_label(selected_fsnms_data) <- list('B13_seeing'='Do you or any member of your household have difficulty seeing, even if wearing glasses?',
+'B14_hearing'='Do you or any member of your household have difficulty hearing, even if using a hearing aid(s)?',
+'B15_walking'='Do you or any member of your household have difficulty walking or climbing steps?',
+'B16_remembering'='Do you or any member of your household have difficulty remembering or concentrating?',
+'B17_washing'='Do you or any member of your household have difficulty with self-care, such as washing all over or dressing?',
+'B18_communicating'='Do you or any member of your household have difficulty communicating, for example understanding or being understood?',
+'B19_difficulty_number'='How many members of the household has any, cannot do, or face a lot of difficulties in any of the areas?',
+'B20_chronic'='How many people in your household have a chronic illness, or the same illness lasting more than three months, now?',
+'B21_safety'='Have any household members been affected by a safety or security incident in the last thirty days?',
+'B22'='Does any member of your household (including yourself) feel distressed to the extent that he/she has a lot of difficulty, or is unable to, work or perform daily routine activities? For example, very upset, sad, worried, sleepless, exhausted, scared, an',
+'B23_documents'='Do you and/or your household members have access to any of the following Government ID documentation?',
+'B23a_documents'='Do you and/or your household members have access to any of the following Birth documentation?',
+'B24_hh_engage'='In the last three months, did any children (<18) in your HH engage in employment outside of the home?',
+'B28_1'='Protection / Security Concerns - Targeted violence / persecution',
+'B28_2'='Protection / Security Concerns - Inter-communal violence / riots',
+'B28_3'='Protection / Security Concerns - Mistreatment or beating by armed groups / army / police',
+'B28_4'='Protection / Security Concerns - Mistreatment or physical violence by others',
+'B28_5'='Protection / Security Concerns - Arbitrary detention',
+'B28_6'='Protection / Security Concerns - Abduction / forced recruitment',
+'B28_7'='Protection / Security Concerns - Criminality / extortion / gang-related violence',
+'B28_8'='Protection / Security Concerns - Labour exploitation',
+'B28_9'='Protection / Security Concerns - Sexual abuse (rape/sexual assault)',
+'B28_10'='Protection / Security Concerns -  Domestic violence',
+'B28_11'='Protection / Security Concerns - Mistreatment of women and girls/emotional violence',
+'B28_12'='Protection / Security Concerns - Women and girls denied of resources and opportunities or services',
+'B28_13'='Protection / Security Concerns - Harmful traditional practices',
+'B28_14'='Protection / Security Concerns - Gender Based Violence / sexual harassment',
+'B28_15'='Protection / Security Concerns - Forced or arranged marriage',
+'B28_16'='Protection / Security Concerns - Discrimination',
+'B25_protection.1'='Protection Services in Settlement - No protection services available',
+'B25_protection.2'='Protection Services in Settlement - Health services for Gender Based Violence (GBV) survivors',
+'B25_protection.3'='Protection Services in Settlement - Counselling, group support services, and recreational activities for GBV',
+'B25_protection.4'='Protection Services in Settlement - Safety and security services by police',
+'B25_protection.5'='Protection Services in Settlement - Legal aid services and advice for GBV survivors',
+'B25_protection.6'='Protection Services in Settlement - Referral and linkage to services',
+'B25_protection.7'='Protection Services in Settlement - Case management for GBV survivors',
+'B25_protection.8'='Protection Services in Settlement - Family Tracing and Reunifications services',
+'B25_protection.9'='Protection Services in Settlement - Alternative care arrangement/services for Unaccompanied and separated children or children associated with armed forces /groups',
+'B25_protection.10'='Protection Services in Settlement - Mental Health and Psychosocial social support services including recreational activities in Child Friendly Spaces and parenting skill sessions with caregivers',
+'B25_protection.11'='Protection Services in Settlement - Case management and Referral for girls and boys with Child protection concerns',
+'B25_protection.12'='Protection Services in Settlement - Child protection awareness raising and information dissemination',
+'B25_protection.13'='Protection Services in Settlement - Socio economic and reintegration support for children released /formerly associated with armed forces and groups',
+'B25_protection.14'='Protection Services in Settlement - Legal aid and Counselling for Housing, Land and Property (HLP) issues',
+'B25_protection.15'='Protection Services in Settlement - Identification and support to Persons with Specific Needs (PSN) including Case management, referrals, and Individual Protection Assistance (IPA)',
+'B25_protection.16'='Protection Services in Settlement - Individual and group Psychological support services (PSS)',
+'B25_protection.17'='Protection Services in Settlement - Dont know',
+'B25_protection.18'='Protection Services in Settlement - Prefer not to answer',
+'B29'='Does your household have any child, son or daughter <18 years not living currently in the household?',
+'B32.1'='What are the top three barriers, if any, that boys in the household face to accessing education?',
+'B32.2'='What are the top three barriers, if any, that boys in the household face to accessing education?',
+'B32.3'='What are the top three barriers, if any, that boys in the household face to accessing education?',
+'B32.1.1'='What are the top three barriers, if any, that girls in the household face to accessing education?',
+'B32.2.1'='What are the top three barriers, if any, that girls in the household face to accessing education?',
+'B32.3.1'='What are the top three barriers, if any, that girls in the household face to accessing education?',
+'B33'='For how long members of your household have to travel on foot to reach the nearest functional education facility?',
+'C01'='What is the residence status of the household?',
+'C02'='Is your household hosting any children that have been separated from their parents or other typical adult caregivers, such as orphaned, separated, or unaccompanied children, within your household now?',
+'C03'='Has your household, or have any members of your household, migrated or moved away in the past 6 months because of reasons not related to insecurity?',
+'C03_hosting_idps'='Is your household hosting any IDPs, or people displaced from somewhere inside South Sudan, now?',
+'C04_hosting_returnees'='Is your household hosting any returnees?',
+'C05'='How would you describe relations between the host community and (previously) displaced groups?',
+'C02.2'='What was the main reason that people in your household migrated in the last 6 months?',
+'D01'='What is the main type of structure your household is current living in?',
+'D02'='What is the current condition of your shelter?',
+'D03'='What is the cause of the damage?',
+'D04'='Does your household have formal written documentation to prove your occupancy arrangement (e.g. written rental agreement, ownership papers)?',
+'D05'='Does your household currently have any of the following problems related to housing, land and property?',
+'D07_source_cooking'='What is the main source of energy for cooking in this household?',
+'D08_source_lighting'='What is the main source of lighting for this household?',
+'D09'='Is anyone in your household a member of any social group, such as a community organization, farmers’ association, savings group, youth group, mother support group, health committee, etc?',
+'D11'='Has anyone in your households received any training in the last 12 months?',
+'D12_training'='What type of training did they receive?',
+'D17'='During the last 3 months, did anyone in your household have a health problem and needed to access health care?',
+'D18'='If anyone had health problems in the last 3 months, where did they go to seek health care?',
+'D23'='How long (in minutes) does it take anyone from your household to get to the nearest, functional health facility by your normal mode of transportation?',
+'D24'='Has any woman in your household received Antenatal care (ANC) services at least four times in the last two years?',
+'T01'='Mental Health Problems - Do you often have headaches?',
+'T02'='Mental Health Problems - Is your appetite poor?',
+'T03'='Mental Health Problems - Do you sleep badly?',
+'T04'='Mental Health Problems - Are you easily frightened?',
+'T05'='Mental Health Problems - Do your hands shake?',
+'T06'='Mental Health Problems - Do you feel nervous, tense, or worried?',
+'T07'='Mental Health Problems - Is your digestion poor?',
+'T08'='Mental Health Problems - Do you have trouble thinking clearly?',
+'T09'='Mental Health Problems - Do you feel unhappy?',
+'T10'='Mental Health Problems - Do you cry more than usual?',
+'T11'='Mental Health Problems - Do you find it difficult to enjoy your daily activities?',
+'T12'='Mental Health Problems - Do you find it difficult to make decisions?',
+'T13'='Mental Health Problems - Is your daily work suffering?',
+'T14'='Mental Health Problems - Are you unable to play a useful part in life?',
+'T15'='Mental Health Problems - Have you lost interest in things?',
+'T16'='Mental Health Problems - Do you feel that you are a valuable person?',
+'T17'='Mental Health Problems - Do you sometimes feel hopeless?',
+'T18'='Mental Health Problems - Do you feel tired all the time?',
+'T19'='Mental Health Problems - Do you have uncomfortable feelings in your stomach?',
+'T20'='Mental Health Problems - Are you easily tired?',
+'G01'="What is your household's main source of drinking water?",
+'G02'='How long does it take for you to collect water (walking from your household to your main water drinking collection point, waiting there, filling the container and returning home)?',
+'G03'='How many jerrycans or buckets with lids, and no holes of any kind, do you have for water collection and storage?',
+'G05'='In the last two weeks, have you or any member of your household ever felt unsafe while collecting water from your main water source?',
+'G08'='Do you have soap in the home (ask to see soap, to see if it appears in a minute)?',
+'G10'='Where do children under 5 who are living in this household usually go to defecate?',
+'G11'="If there are children under 5 that don't use sanitation facilities (latrines/toilets), what is done with their faeces?",
+'G12'='Does your household use any of the following water treatment methods before drinking to make it safer for drinking?',
+'G13'='What do women (especially the teenage girls) use in dealing with menstruation?',
+'H01'="In the last three months, what was your household's most important activity for getting food and income?",
+'H01_1'="In the last three months, what was your household's second most important activity for getting food and income?",
+'H02'='Has the main income/food sources changed during the past 6 months?',
+'J01'='In the past 12 months, was there a time when you (or any other member of your household) were WORRIED that you would not have enough to eat because of lack of resources to get food?',
+'J02'='In the past 12 months, was there a time when you (or any other member of your household) were unable to eat HEALTHY and nutritious food because of lack of resources to get food?',
+'J03'='In the past 12 months, was there a time when you (or any other member of your household) ate only a FEW kinds of FOODS because of lack of resources to get food?',
+'J04'='In the past 12 months, was there a time when you (or any other member of your household) had to SKIP a meal because of lack of resources to get food?',
+'J05'='In the past 12 months, was there a time when you (or any other member of your household) ATE LESS than you thought you should because of lack of resources to get food?',
+'J06'='In the past 12 months, was there a time when there was no food to eat of any kind in your house because of lack of resources to get food?',
+'J06a'='If YES, was it during the past 4 weeks/30days?',
+'J07'='In the past 12 months, was there a time when you (or any other member of your household) were HUNGRY but did not eat because there was not enough food?',
+'J08'='In the past 12 months, was there a time when you or any household member went to sleep at night hungry because there was not enough food?',
+'J09'='In the past 12 months, was there a time when you (or any other member of your household) went for a whole day and night without eating anything at all because there was not enough food?',
+'K001'='What proportion of household expenditure (both cash and credit) goes to food compared to other household expenses in the last 3 months period (use proportional piling)',
+'K002'='What proportion of your food (cereals and pulses) comes from own production compared to the from the market in the last one month',
+'K003'='What proportion of the total household food expenditure per month is on cereals and pulses (use proportional piling)',
+'K004'='What proportion of the total cereal and pulses consumed from the household in the last 3 months is from food assistance (cash or in-kind)? (use proportional piling)',
+'K005'='In the last 3 months, how often did your household use credit or borrow money?',
+'K006'='What was the main reason that your household used credit or borrowed money?',
+'L01'='Where does your household normally purchase staple food from?',
+'L05'='In the last month, how often did your household purchase cereals (maize, sorghum, millet, etc.) from a market, using cash or credit?',
+'L06'='In the last month, how often did your household purchase pulses (beans, lentils, groundnuts, etc.) from a market, using cash or credit?',
+'L07'='For how long do members of your household have to travel on foot to reach the nearest operational marketplace or grocery store?',
+'L08'='In the last month, which food did your household spend the most in cash or credit on?',
+'M01.1'='Difficulties or shocks in the past 6 months? - No shocks affected my household',
+'M01.2'='Difficulties or shocks in the past 6 months? - Loss of or reduced employment for any household member',
+'M01.3'='Difficulties or shocks in the past 6 months? - Reduced income of any household member',
+'M01.4'='Difficulties or shocks in the past 6 months? - Serious illness or accident resulting in injury for any household member',
+'M01.5'='Difficulties or shocks in the past 6 months? - Death of a working adult household member',
+'M01.6'='Difficulties or shocks in the past 6 months? - Unusually high food prices',
+'M01.7'='Difficulties or shocks in the past 6 months? - Unusually high prices of fuel/transport and other non-food prices',
+'M01.8'='Difficulties or shocks in the past 6 months? - Drought/irregular rains, prolonged dry spell',
+'M01.9'='Difficulties or shocks in the past 6 months? - Unusually high level of crop pests and disease',
+'M01.10'='Difficulties or shocks in the past 6 months? - Insecurity/violence/raiding/looting' ,
+'M01.11'='Difficulties or shocks in the past 6 months? - Non-violent theft/criminals',
+'M01.12'='Difficulties or shocks in the past 6 months? - Household member affected by COVID',
+'M01.13'='Difficulties or shocks in the past 6 months? - Disease outbreak in the community',
+'M01.14'='Difficulties or shocks in the past 6 months? - Too much rain',
+'M01.15'='Difficulties or shocks in the past 6 months? - Livestock disease outbreak',
+'M01.16'='Difficulties or shocks in the past 6 months? - Crops destroyed by floods',
+'M01.17'='Difficulties or shocks in the past 6 months? - Houses flooded',
+'M01.18'='Difficulties or shocks in the past 6 months? - Markets flooded',
+'M01.88'='Difficulties or shocks in the past 6 months? - Other (specify)',
+'N01'='In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to rely on less preferred and less expensive food?',
+'N02'='In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to limit portion sizes at meals?',
+'N03'='In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to restrict consumption by adults in order for small children to eat?',
+'N04'='In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to reduce number of meals eaten in a day?',
+'N05'='N05. In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to borrow food or rely on help from friends or relatives?',
+'N06'='In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to give less food than normal to elderly household members?',
+'N07'='In the past 7 days, if there have been times when you did not have enough food or money to buy food, how often has your household had to give less food than normal to adult women in the household?',
+'N08'='In the last 30 days, did your household send household members to eat with another household because of a lack of food or money to buy food?',
+'N09'='In the last 30 days, did your household sell more animals than usual for this time of year because of a lack of food or money to buy food?',
+'N10'='In the last 30 days, did your household borrow money or purchase food on credit because of a lack of food or money to buy food more than usual during this time of year?',
+'N11'='In the last 30 days, did your household gather wild foods more than normal for this time of year because of a lack of food or money to buy food?',
+'N12'='In the last 30 days, did your household ask other community members for a support of food because of a lack of food or money to buy food?',
+'N13'='In the last 30 days, did your household send more household members than normal to cattle and/or fishing camps because of a lack of food or money to buy food?',
+'N14'='In the last 30 days, did your household sell or eat seeds intended for planting this season because of a lack of food or money to buy food?',
+'N15'='In the last 30 days, did your household sell or slaughter the last of your cows and goats because of a lack of food or money to buy food?',
+'N16'='In the last 30 days, did your household travel to another village to look for/ search for (beging) for food or other resources because of a lack of food or money to buy food?',
+'N17'='In the last 30 days, did your household use community leaders or a local court to collect debts or bride wealth/dowry, or to gain a support of food or other resources from another community member because of a lack of food or money to buy food?',
+'O01'='Does your household have access to land for cultivation?',
+'O01.1'='How much land (in Feddans) do you have for cultivation of all your crops?',
+'O01.2'='What is the ownership status of the land that you are cultivating?',
+'O01.3'='Do you have any formal document issued by the Land Registry or local authorities showing that you are the legal owner of your farmland?',
+'O02'='Did your household plant this year?',
+'O03.1' = 'Why did your household not plant this year? - Weather conditions were not conducive for farming',
+'O03.2' = 'Why did your household not plant this year? - Pests [locusts/fall armyworm/etc.]',
+'O03.3' = 'Why did your household not plant this year? - Lack of seeds/fertilizers/tools',
+'O03.4' = 'Why did your household not plant this year? - Seeds/fertilizers/tools are too expensive',
+'O03.5' = 'Why did your household not plant this year? - Lack of credit',
+'O03.6' = 'Why did your household not plant this year? - Lost access to land',
+'O03.7' = 'Why did your household not plant this year? - Lack of labor',
+'O03.8' = 'Why did your household not plant this year? - Erosion/poor soil quality',
+'O03.9' = 'Why did your household not plant this year? - Insecurity',
+'O03.10' = 'Why did your household not plant this year? - Engaged in other productive/employment activities',
+'O03.11' = 'Why did your household not plant this year? - Low demand/few people are buying products',
+'O03.12' = 'Why did your household not plant this year? - Lack of transportation to market to sell',
+'O03.13' = 'Why did your household not plant this year? - Markets are closed',
+'O03.14' = 'Why did your household not plant this year? - Prices are too low',
+'O03.15' = 'Why did your household not plant this year? - Storage challenges',
+'O03.16' = 'Why did your household not plant this year? - Could not access the land due to COVID-19 related movement restrictions',
+'O03.17' = 'Why did your household not plant this year? - Could not access inputs because of COVID-19 measures',
+'O03.18' = 'Why did your household not plant this year? - Lack of labour because of COVID-19 measures',
+'O03.19' = 'Why did your household not plant this year? - Other (Specify)',
+'O03.20' = 'Why did your household not plant this year? - Dont know',
+'O03.21' = 'Why did your household not plant this year? - Refused',
+'O04.1'='Which crops did you plant this year? - Sorghum',
+'O04.2'='Which crops did you plant this year? - Maize',
+'O04.3'='Which crops did you plant this year? - Millet',
+'O04.4'='Which crops did you plant this year? - Rice',
+'O04.5'='Which crops did you plant this year? - Groundnuts',
+'O04.6'='Which crops did you plant this year? - Sesame / Simsim',
+'O04.7'='Which crops did you plant this year? - Beans',
+'O04.8'='Which crops did you plant this year? - Cowpeas',
+'O04.9'='Which crops did you plant this year? - Pigeon Peas',
+'O04.10'='Which crops did you plant this year? - Vegetables',
+'O04.11'='Which crops did you plant this year? - Potatoes (Irish and Sweet)',
+'O04.12'='Which crops did you plant this year? - Other (Specify)',
+'O06'='Does your household have a kitchen garden (this is a small garden that is found near the homestead)',
+'P01'='Does your household own any livestock or farm animals (even if they are not near your home or compound now)?',
+'P02_1'='How has the number of livestock currently owned by your household changed compared to the same time last year?',
+'P02_2'='What caused the largest proportion of decrease in the number of livestock owned by your household?',
+'P05'='Is your household able to get milk for consumption now?',
+'Q01a'='Is your household able to get fish for consumption now?',
+'R01'='Has any of your household members received any [FORM OF ASSISTANCE] in the past 3 months?',
+'R02'='When did you receive food or cash from the most recent distribution?',
+'R03'='The last received distribution, did you receive cash/Voucher or food?',
+'R03.1'='Cereals (Kgs)',
+'R03.2'='Pulses (Kgs)',
+'R03.3'='Cooking oil (liters)',
+'R03.4'='What value of vouchers or amount of cash you received from the last distribution in SSP?',
+'R06.2'='Was your household satisfied with the assistance?',
+'R07'='In the past three months, has anyone in your household experienced protection/safety issues while accessing humanitarian assistance?',
+'R08a'='What are the top three priority needs of your household? First priority',
+'R08b'='What are the top three priority needs of your household? Second priority',
+'R08c'='What are the top three priority needs of your household? Third priority',
+'R08.1'='If you or a member of your household wanted to, would you feel able to provide feedback and make complaints regarding humanitarian assistance?',
+'R08.2'='Do you trust the feedback and complaint mechanism(s) - especially for response time, confidentiality, and sensitive issues?',
+'R09'='Does your household receive adequate information about the different humanitarian services available to you?',
+'A04_Num'='State',
+'A05_Num'='County',
+'age_hhh'='Age of Head of Household',
+'Age_HH'='Age of Head of Household - Category',
+'Sex_HH_Cat'='Sex of Head of Household - Category',
+'Pop_groups3'='Household Residency',
+'Family_size'='Family Size',
+'Children_under3'='Number of Children Under 3 years of Age',
+'Children_3_to_5years'='Number of Children Between 3 and 5 Years of Age',
+'Children_6_to_13years'='Number of Children Between 6 and 13 Years of Age',
+'Children_14_to_17years'='Number of Children Between 14 and 17 Years of Age',
+'Adults_18_to_60years'='Number of Adults Between 18 and 60 Years of Age',
+'Adults_60plus'='Number of Adults Above 60 Years of Age',
+'Children_under6'='Number of Children Aged 0 to 5 Years of Age',
+'Children_under18'='Number of Children Under 18 Years of Age',
+'Children_under6_YN'='Children Under 6 years of Age - Y/N',
+'Children_under18_YN'='Children Under 18 years of Age - Y/N',
+'Adults_18_to_60years_YN'='Adults Between 18 and 60 Years of Age - Y/N',
+'Adults_60plus_YN'='Adults Above 60 Years of Age - Y/N',
+'Diability_various_YN'='Household Members with Disability - Y/N',
+'Disable_mems'='Number of Household Members with Disability',
+'HH_size'='Number of Household Members',
+'dependants'='Number of Household Dependents',
+'timespenst'='timespenst',
+'Clean_Source'='Household Access to Clean Drinking Source - Y/N',
+'Access_Water'='Household Timely Access to Water Source - Y/N',
+'Safe_Access'='Safe_Access',
+'CTW'='Household Access to Timely and Clean Water Source - Y/N',
+'WASH_NFIs'='Households Access to Drinking Water and Soap for Handwashing',
+'Asset_ownership'='Asset_ownership',
+'Asset_inconsitency'='Asset_inconsitency',
+'Productive_Asset'='Productive_Asset',
+'Asset_looted'='Asset_looted',
+'HHSQ1'='Household Hunger Score - No Food to Eat in Household',
+'HHSQ2'='Household Hunger Score - Household Member Went to Sleep Hungry',
+'HHSQ3'='Household Hunger Score - Household Member Whole Day Without Food',
+'HHS'='Household Hunger Score - Classification',
+'FCS'='Food Consumption Score',
+'FC_group'='Food Consumption Score - Classification',
+'staples24h'='Food Consumption - Staple 24H',
+'roots24h'='Food Consumption - Root 24H',
+'pulses24h'='Food Consumption - Pulse 24H',
+'veg24h'='Food Consumption - Vegetable 24H',
+'fruit24h'='Food Consumption - Fruit 24H',
+'meat24h'='Food Consumption - Meat 24H',
+'fish24h'='Food Consumption - Fish 24H',
+'eggs24h'='Food Consumption - Egg 24H',
+'dairy24h'='Food Consumption - Dairy 24H',
+'oil24h'='Food Consumption - Oil 24H',
+'sugar24h'='Food Consumption - Sugar 24H',
+'condiments24h'='Food Consumption - Condiment 24H',
+'HDDS_scores'='Household Dietary Diversity Score',
+'HDDS_IPC'='Household Dietary Diversity Score - IPC',
+'HDDS_cat'='Household Dietary Diversity Score - Classification',
+'Food_credit'='Household Bought Food on Credit',
+'Food_Gathering'='Household Dependent on Food Gathering',
+'Food_Hunting'='Household Dependent on Hunting for Food',
+'Food_Hunting_Hunting'='Food_Hunting_Hunting',
+'rCSI'='Consumption-Based Coping Strategy Index - Score',
+'rCSI_IPC'='Consumption-Based Coping Strategy Index - IPC',
+'rCSI_YN'='Consumption-Based Coping Strategy Index - Y/N',
+'LessPreferred_YN'='Consumption-Based Coping Strategy Index - Less Preferred',
+'LimitPortionSize_YN'='Consumption-Based Coping Strategy Index - Limited Portion Size',
+'RestrictAdultConsumption_YN'='Consumption-Based Coping Strategy Index - Restricted Adult Consumption',
+'ReduceNumMeals_YN'='Consumption-Based Coping Strategy Index - Reduced Number Meals',
+'BorrowFood_YN'='Consumption-Based Coping Strategy Index - Borrowed Food',
+'Stress_coping'='Livelihoods-Based Coping Strategy Index - Stress',
+'Crisis_coping'='Livelihoods-Based Coping Strategy Index - Crisis',
+'Emergency_coping'='Livelihoods-Based Coping Strategy Index - Emergency',
+'Max_coping_behaviour'='Livelihoods-Based Coping Strategy Index - Classification',
+'O05.14'='O05.14',
+'TLU_present'='TLU_present',
+'TLU_gr_present'='TLU_gr_present',
+'TLU_CGS'='TLU_CGS',
+'L_ownership_CGS'='L_ownership_CGS',
+'SS1_YN'='SS1_YN',
+'SS2_YN'='SS2_YN',
+'SS3_YN'='SS3_YN',
+'SCS'='SCS',
+'HA'='Household Received Any Humanitarian Assistance in Last 3 Months',
+'GFD_1Month'='Household Received GFD in Last 1 Month',
+'Foodexp_4pt'='Food Expenditure Share',
+'FS_final'='Food Security Index',
+'TotalAssets'='TotalAssets',
+'FCLC_Phase'='Food Consumption Livelihood Coping Convergence Phase',
+'FoodAid'='FoodAid',
+'CerealHA'='CerealHA',
+'PulsesHA'='PulsesHA',
+'OilHA'='OilHA',
+'Cereal_kcal'='Cereal_kcal',
+'Pulse_kcal'='Pulse_kcal',
+'Oil_kcal'='Oil_kcal',
+'HA_kcals'='HA_kcals',
+'FCLC_Phase_MinusHA'='Food Consumption Livelihood Coping Convergence Phase - Minus HA',
+'sampleweight'='Sample weights for FSNMS Round 27')
+
+
+
+```
+
+```{r data_national_weighted}
+
+## creates weighted national dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) -> selected_fsnms_data_weighted
+
+
+```
+
+
+```{r data_national_unweighted}
+
+## creates weighted national dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) -> selected_fsnms_data_unweighted
+
+
+```
+
+
+```{r data_state_weighted}
+
+## creates state datasets
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Central Equatoria") -> central_equatoria_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Eastern Equatoria") -> eastern_equatoria_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Jonglei") -> jonglei_dataset
+  
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Lakes") -> lakes_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Northern Bahr el Ghazal") -> nbeg_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Unity") -> unity_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Upper Nile") -> upper_nile_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Warrap") -> warrap_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Western Bahr el Ghazal") -> wbeg_dataset
+
+selected_fsnms_data %>% select(where(~ !(all(is.na(.)) | all(. == "")))) %>% as_survey_design(cluster_id, strata = "A05_Num", weight = "sampleweight" , nest = TRUE) %>% filter(A04_Num == "Western Equatoria") -> western_equatoria_dataset
+
+
+```
+
+
+```{r weighted_funs}
+
+## creates function to calcuated weighted summary statistics by household head assistance status
+
+hh_assistance_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = GFD_1Month,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2") ~ "**Household GFD Assistance**") %>% 
+  as_gt() 
+  
+}
+
+lzcode_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = LZCODE,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1":"stat_13") ~ "** Livelihood Zone **") %>% 
+  as_gt() 
+  
+}
+
+
+## creates function to calcuated weighted summary statistics by household head sex
+
+hh_head_sex_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = Sex_HH_Cat,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2") ~ "**Head of Household Sex**") %>% 
+  as_gt() 
+  
+}
+
+
+## creates function to calcuated weighted summary statistics by household head age
+
+hh_head_age_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = Age_HH,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2", "stat_3") ~ "**Head of Household Age**") %>% 
+  as_gt()
+  
+}
+
+
+## creates function to calcuated weighted summary statistics by household residency status
+
+hh_residency_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = C01,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1":"stat_3") ~ "**Household Residency**") %>% 
+  as_gt() 
+  
+}
+
+
+hh_composition_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = hh_composition,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1":"stat_6") ~ "**Household Composition**") %>% 
+  as_gt() 
+  
+}
+
+
+
+## creates function to calcuated weighted summary statistics by household location - state
+
+hh_state_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = A04_Num,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2", "stat_3", "stat_4", "stat_5", "stat_6","stat_7","stat_8","stat_9", "stat_10") ~ "**Household Location**") %>% 
+  as_gt() 
+  
+}
+
+
+## creates function to calcuated weighted summary statistics by household food security
+
+hh_fs_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = FS_final,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2", "stat_3", "stat_4") ~ "**Household Food Security**") %>% 
+  as_gt() 
+  
+}
+
+hh_disability_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = disability_yn,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2", "stat_3") ~ "**Household Disability**") %>% 
+  as_gt() 
+  
+}
+
+
+hh_ci_function <- function (y) {
+  y %>% 
+  tbl_svysummary(by = chronic_yn,
+                 type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+                 statistic = list(all_continuous() ~ "{mean}",
+                                  all_categorical() ~ "{N_nonmiss}({p}%)"),
+                 missing = "no") %>%
+  add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+                    # all_categorical() ~ "mcnemar.test"
+                    # ),
+        pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  add_overall()%>%
+  modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_1", "stat_2", "stat_3") ~ "**Household Chronic Illness**") %>% 
+  as_gt() 
+  
+}
+
+
+
+
+```
+
+
+```{r unweighted_funs}
+  
+## Creates unweighted cross-sectional function
+
+hh_county_unweighted_function <- function (y) {
+  y %>%
+  tbl_summary(by = A05_Num,
+              type = list(where(is.logical) ~ "categorical", where(is.numeric) ~ "continuous"),
+              statistic = list(all_continuous() ~ "{mean}",
+                               all_categorical() ~ "{p}%"),
+              missing = "no") %>%
+  # add_p(#test = list(all_continuous() ~ "paired.wilcox.test" #,
+  #                   # all_categorical() ~ "mcnemar.test"
+  #                   # ),
+  #       pvalue_fun = ~style_pvalue(.x, digits = 2)) %>%
+  # add_overall()%>%
+  # modify_header(update = list(label ~ "**Variable**",p.value ~ "**P**"))%>%
+  bold_labels()%>%
+  italicize_labels()%>%
+  italicize_levels() %>%
+  modify_spanning_header(c("stat_0":"stat_80") ~ "**County**") %>%
+  as_gt()
+
+}
+
+
+```
+
+# National Summary Statistics {.tabset .tabset-fade}
+
+Please note that the following summary statistics includes data from rural areas only
+
+## Disaggregated - Household GFD Assistance
+
+```{r tab1_1, cache = TRUE, autodep = TRUE}
+tab1_1 <- hh_assistance_function(selected_fsnms_data_weighted)
+
+tab1_1
+
+```
+
+## Disaggregated - Head of Household Age
+
+```{r tab1_2, cache = TRUE, autodep = TRUE}
+tab1_2 <- hh_head_age_function(selected_fsnms_data_weighted)
+  
+tab1_2
+
+```
+
+
+## Disaggregated - Head of Household Sex
+
+```{r tab1_3, cache = TRUE, autodep = TRUE}
+tab1_3 <- hh_head_sex_function(selected_fsnms_data_weighted)
+  
+tab1_3
+
+```
+
+## Disaggregated - Household Disability
+
+```{r tab1_8, cache = TRUE, autodep = TRUE}
+tab1_8 <- hh_disability_function(selected_fsnms_data_weighted)
+  
+tab1_8
+
+```
+
+## Disaggregated - Household Chronic Illness
+
+```{r tab1_10, cache = TRUE, autodep = TRUE}
+tab1_10 <-hh_ci_function(selected_fsnms_data_weighted)
+  
+tab1_10
+
+```
+
+## Disaggregated - Household Composition
+
+```{r tab1_9, cache = TRUE, autodep = TRUE}
+tab1_9 <-hh_composition_function(selected_fsnms_data_weighted)
+  
+tab1_9
+
+```
+
+## Disaggregated - Household State
+
+```{r tab1_4, cache = TRUE, autodep = TRUE}
+tab1_4 <- hh_state_function(selected_fsnms_data_weighted)
+  
+tab1_4
+
+```
+
+
+## Disaggregated - Household Residency
+
+```{r tab1_5, cache = TRUE, autodep = TRUE}
+tab1_5 <- hh_residency_function(selected_fsnms_data_weighted)
+  
+tab1_5
+
+```
+
+## Disaggregated - Household Food Security
+
+```{r tab1_6, cache = TRUE, autodep = TRUE}
+tab1_6 <- hh_fs_function(selected_fsnms_data_weighted)
+  
+tab1_6
+
+```
+
+## Disaggregated - Livelihood Zone
+
+```{r tab1_7, cache = TRUE, autodep = TRUE}
+
+tab1_7 <- lzcode_function(selected_fsnms_data_weighted)
+  
+tab1_7
+
+```
+
+
+```{r worksheet_development, cache = TRUE, autodep = TRUE}
+# Create blank workbook
+national_stats <- createWorkbook()
+
+# Add sheets to the workbook
+addWorksheet(national_stats, "hh_assistance_disaggregation")
+addWorksheet(national_stats, "hh_head_age_disaggregation")
+addWorksheet(national_stats, "hh_head_sex_disaggregation")
+addWorksheet(national_stats, "hh_location_disaggregation")
+addWorksheet(national_stats, "hh_residency_disaggregation")
+addWorksheet(national_stats, "hh_disability_disaggregation")
+addWorksheet(national_stats, "hh_fs_disaggregation")
+addWorksheet(national_stats, "livelihood_zone")
+
+# Write data to the sheets
+writeData(national_stats, sheet = "hh_assistance_disaggregation", x = tab1_1)
+writeData(national_stats, sheet = "hh_head_age_disaggregation", x = tab1_2)
+writeData(national_stats, sheet = "hh_head_sex_disaggregation", x = tab1_3)
+writeData(national_stats, sheet = "hh_location_disaggregation", x = tab1_4)
+writeData(national_stats, sheet = "hh_residency_disaggregation", x = tab1_5)
+writeData(national_stats, sheet = "hh_fs_disaggregation", x = tab1_6)
+writeData(national_stats, sheet = "hh_disability_disaggregation", x = tab1_8)
+writeData(national_stats, sheet = "livelihood_zone", x = tab1_7)
+
+# Export the file
+saveWorkbook(national_stats, "./Data Output/national_summary_table_output.xlsx", overwrite = TRUE)
+
+
+```
+
+# State Summary Statistics {.tabset .tabset-fade}
+
+```{r tab_state, cache = TRUE, autodep = TRUE}
+
+
+```
+
+# County Summary Statistics {.tabset .tabset-fade}
+
+```{r tab_county, cache = TRUE, autodep = TRUE}
+
+
+```
+
+
+# Plots {.tabset .tabset-fade}
+
+```{r tab_plots, cache = TRUE, autodep = TRUE}
+
+
+```
